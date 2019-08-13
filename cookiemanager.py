@@ -3,6 +3,7 @@
 # must install:
 # pip3 install lz4
 # pip3 install --upgrade keyrings.alt
+# pip3 install secretstorage
 __doc__ = 'Load browser cookies into a cookiejar'
 
 import os
@@ -35,6 +36,7 @@ import lz4.block
 import keyring
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
+import secretstorage
 
 class BrowserCookieError(Exception):
     pass
@@ -114,7 +116,16 @@ class Chrome(BrowserCookieLoader):
 
         elif sys.platform.startswith('linux'):
             # running Chrome on Linux
-            my_pass = 'peanuts'.encode('utf8')
+            bus = secretstorage.dbus_init()
+            collection = secretstorage.get_default_collection(bus)
+            for item in collection.get_all_items():
+                if item.get_label() == 'Chrome Safe Storage':
+                    my_pass = item.get_secret()
+                    break
+            else:
+                raise Exception('Chrome password not found!')
+
+            print ('pass: ', my_pass)
             iterations = 1
             key = PBKDF2(my_pass, salt, length, iterations)
 
@@ -137,8 +148,8 @@ class Chrome(BrowserCookieLoader):
                 for item in cur.fetchall():
                     host, path, secure, expires, name = item[:5]
                     value = self._decrypt(item[5], item[6], key=key)
-                    print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
-                    print(value)
+                    if item[0] == '.instagram.com':
+                        print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
                     yield create_cookie(host, path, secure, expires, name, value)
                 con.close()
 
@@ -146,8 +157,8 @@ class Chrome(BrowserCookieLoader):
         """Decrypt encoded cookies
         """
         if (sys.platform == 'darwin') or sys.platform.startswith('linux'):
-            if value or (encrypted_value[:3] != b'v10'):
-                return value
+            # if value or (encrypted_value[:3] != b'v10'):
+            #     return value
 
             # Encrypted cookies should be prefixed with 'v10' according to the
             # Chromium code. Strip it off.
@@ -156,11 +167,14 @@ class Chrome(BrowserCookieLoader):
             # Strip padding by taking off number indicated by padding
             # eg if last is '\x0e' then ord('\x0e') == 14, so take off 14.
             def clean(x):
-                last = x[-1]
-                if isinstance(last, int):
-                    return x[:-last].decode('utf8')
+                if len(x) > 0:
+                    last = x[-1]
+                    if isinstance(last, int):
+                        return x[:-last].decode('utf8')
+                    else:
+                        return x[:-ord(last)].decode('utf8')
                 else:
-                    return x[:-ord(last)].decode('utf8')
+                    return ''
 
             iv = b' ' * 16
             cipher = AES.new(key, AES.MODE_CBC, IV=iv)
