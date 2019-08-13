@@ -37,6 +37,7 @@ import keyring
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
 import secretstorage
+import shutil
 
 class BrowserCookieError(Exception):
     pass
@@ -64,6 +65,11 @@ class BrowserCookieLoader(object):
     def __init__(self, cookie_files=None):
         cookie_files = cookie_files or self.find_cookie_files()
         self.cookie_files = list(cookie_files)
+        self.sites = [ '.instagram.com', '.amazon.com.br' ]
+
+    def add_sites_to_logout(self, sites):
+        if len(sites) > 0:
+            self.sites.append(sites)
 
     def find_cookie_files(self):
         '''Return a list of cookie file locations valid for this loader'''
@@ -148,18 +154,39 @@ class Chrome(BrowserCookieLoader):
                 for item in cur.fetchall():
                     host, path, secure, expires, name = item[:5]
                     value = self._decrypt(item[5], item[6], key=key)
-                    if item[0] == '.instagram.com':
-                        print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
+                    # if item[0] == '.instagram.com':
+                    #     print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
                     yield create_cookie(host, path, secure, expires, name, value)
                 con.close()
+
+    def logout_from_sites(self):
+        # TODO: close_browser()
+        for cookie_file in self.cookie_files:
+            con = sqlite3.connect(cookie_file)
+            cur = con.cursor()
+
+            for site in self.sites:
+                # query = 'SELECT * FROM cookies WHERE host_key = ? and name LIKE ?;'
+                # cur.execute(query, (site, '%session%'))
+                # for item in cur.fetchall():
+                #     print(item)
+
+                query = 'SELECT * FROM cookies WHERE host_key = ?;'
+                cur.execute(query, (site, ))
+                for item in cur.fetchall():
+                    print(item)
+
+                query = 'DELETE FROM cookies WHERE host_key = ?;'
+                cur.execute(query, (site, ))
+
+            con.commit()
+            con.close()
+        # TODO: open_browser()
 
     def _decrypt(self, value, encrypted_value, key):
         """Decrypt encoded cookies
         """
         if (sys.platform == 'darwin') or sys.platform.startswith('linux'):
-            # if value or (encrypted_value[:3] != b'v10'):
-            #     return value
-
             # Encrypted cookies should be prefixed with 'v10' according to the
             # Chromium code. Strip it off.
             encrypted_value = encrypted_value[3:]
@@ -288,7 +315,7 @@ def create_cookie(host, path, secure, expires, name, value):
 def chrome(cookie_file=None):
     """Returns a cookiejar of the cookies used by Chrome
     """
-    return Chrome(cookie_file).load()
+    return Chrome(cookie_file)#.load()
 
 
 def firefox(cookie_file=None):
