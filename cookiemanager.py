@@ -4,16 +4,13 @@
 # pip3 install lz4
 # pip3 install --upgrade keyrings.alt
 # pip3 install secretstorage
-__doc__ = 'Load browser cookies into a cookiejar'
+# pip3 install psutil
+__doc__ = 'Load browser cookies and clean it'
 
 import os
 import sys
 import time
 import glob
-try:
-    import cookielib
-except ImportError:
-    import http.cookiejar as cookielib
 from contextlib import contextmanager
 import tempfile
 try:
@@ -37,7 +34,7 @@ import keyring
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
 import secretstorage
-import shutil
+import psutil
 
 class BrowserCookieError(Exception):
     pass
@@ -80,20 +77,34 @@ class BrowserCookieLoader(object):
         raise NotImplementedError
 
     def logout_from_sites(self):
-        '''Return all cookies (May include duplicates from different sources)'''
+        '''Logout from sites included in self.sites'''
         raise NotImplementedError
 
-    def load(self):
-        '''Load cookies into a cookiejar'''
-        cookie_jar = cookielib.CookieJar()
-        for cookie in self.get_cookies():
-            cookie_jar.set_cookie(cookie)
-        return cookie_jar
+    # TODO: both methods
+    def open_browser(self):
+        '''Open a new browser process'''
+        raise NotImplementedError
 
+    def close_browser(self):
+        '''Open all browser processes'''
+        raise NotImplementedError
 
 class Chrome(BrowserCookieLoader):
     def __str__(self):
         return 'chrome'
+
+    # TODO: return process name
+
+    def open_browser(self):
+        newprocess="google-chrome &"
+        os.system(newprocess)
+
+    def close_browser(self):
+        for proc in psutil.process_iter():
+            proc_name = proc.name()
+            if 'chrome' in proc_name:
+                # print ('Closing browser')
+                proc.kill()
 
     def find_cookie_files(self):
         for pattern in [
@@ -160,7 +171,7 @@ class Chrome(BrowserCookieLoader):
                 con.close()
 
     def logout_from_sites(self):
-        # TODO: close_browser()
+        close_browser()
         for cookie_file in self.cookie_files:
             con = sqlite3.connect(cookie_file)
             cur = con.cursor()
@@ -181,7 +192,7 @@ class Chrome(BrowserCookieLoader):
 
             con.commit()
             con.close()
-        # TODO: open_browser()
+        open_browser()
 
     def _decrypt(self, value, encrypted_value, key):
         """Decrypt encoded cookies
@@ -305,13 +316,6 @@ class Firefox(BrowserCookieLoader):
                     print('Could not find any Firefox session files')
 
 
-
-def create_cookie(host, path, secure, expires, name, value):
-    """Shortcut function to create a cookie
-    """
-    return cookielib.Cookie(0, name, value, None, False, host, host.startswith('.'), host.startswith('.'), path, True, secure, expires, False, None, None, {})
-
-
 def chrome(cookie_file=None):
     """Returns a cookiejar of the cookies used by Chrome
     """
@@ -332,14 +336,3 @@ def _get_cookies():
                 yield cookie
         except BrowserCookieError:
             pass
-
-
-def load():
-    """Try to load cookies from all supported browsers and return combined cookiejar
-    """
-    cookie_jar = cookielib.CookieJar()
-
-    for cookie in sorted(_get_cookies(), key=lambda cookie: cookie.expires):
-        cookie_jar.set_cookie(cookie)
-
-    return cookie_jar
