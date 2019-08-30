@@ -35,6 +35,7 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Cipher import AES
 import secretstorage
 import psutil
+import webbrowser
 
 class BrowserCookieError(Exception):
     pass
@@ -63,6 +64,7 @@ class BrowserCookieLoader(object):
         cookie_files = cookie_files or self.find_cookie_files()
         self.cookie_files = list(cookie_files)
         self.sites = [ '.instagram.com', '.amazon.com.br' ]
+        self.open_browser()
 
     def add_sites_to_logout(self, sites):
         if len(sites) > 0:
@@ -83,7 +85,9 @@ class BrowserCookieLoader(object):
     # TODO: both methods
     def open_browser(self):
         '''Open a new browser process'''
-        raise NotImplementedError
+        url = "http://www.google.com"
+        webbrowser.get(using=self.__str__()).open(url,new=2)
+        # raise NotImplementedError
 
     def close_browser(self):
         '''Open all browser processes'''
@@ -91,13 +95,9 @@ class BrowserCookieLoader(object):
 
 class Chrome(BrowserCookieLoader):
     def __str__(self):
-        return 'chrome'
+        return 'google-chrome'
 
     # TODO: return process name
-
-    def open_browser(self):
-        newprocess="google-chrome &"
-        os.system(newprocess)
 
     def close_browser(self):
         for proc in psutil.process_iter():
@@ -171,7 +171,7 @@ class Chrome(BrowserCookieLoader):
                 con.close()
 
     def logout_from_sites(self):
-        close_browser()
+        self.close_browser()
         for cookie_file in self.cookie_files:
             con = sqlite3.connect(cookie_file)
             cur = con.cursor()
@@ -192,7 +192,7 @@ class Chrome(BrowserCookieLoader):
 
             con.commit()
             con.close()
-        open_browser()
+        self.open_browser()
 
     def _decrypt(self, value, encrypted_value, key):
         """Decrypt encoded cookies

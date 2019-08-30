@@ -3,4 +3,4 @@ import cookiemanager;
 
 if __name__ == "__main__":
     cookiemanager.chrome()
-    #cj = cookiemanager.chrome().logout_from_sites()
+    # cj = cookiemanager.chrome().logout_from_sites()
