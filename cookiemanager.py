@@ -1,10 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# must install:
-# pip3 install lz4
-# pip3 install --upgrade keyrings.alt
-# pip3 install secretstorage
-# pip3 install psutil
+# pip install --upgrade -r requirements.txt
 __doc__ = 'Load browser cookies and clean it'
 
 import os
@@ -63,8 +59,11 @@ class BrowserCookieLoader(object):
     def __init__(self, cookie_files=None):
         cookie_files = cookie_files or self.find_cookie_files()
         self.cookie_files = list(cookie_files)
-        self.sites = [ '.instagram.com', '.amazon.com.br' ]
-        self.open_browser()
+        self.sites = [ '.instagram.com' ]
+
+    def __process__(self):
+        '''Browser process name'''
+        raise NotImplementedError
 
     def add_sites_to_logout(self, sites):
         if len(sites) > 0:
@@ -86,8 +85,7 @@ class BrowserCookieLoader(object):
     def open_browser(self):
         '''Open a new browser process'''
         url = "http://www.google.com"
-        webbrowser.get(using=self.__str__()).open(url,new=2)
-        # raise NotImplementedError
+        webbrowser.get(using=self.__process__()).open_new(url)
 
     def close_browser(self):
         '''Open all browser processes'''
@@ -95,9 +93,15 @@ class BrowserCookieLoader(object):
 
 class Chrome(BrowserCookieLoader):
     def __str__(self):
-        return 'google-chrome'
+        return 'chrome'
 
-    # TODO: return process name
+    def __process__(self):
+        if sys.platform == 'linux':
+            return 'google-chrome'
+        elif sys.platform == 'win32':
+            return 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s'
+        elif sys.platform == 'darwin':
+            return 'open -a /Applications/Google\ Chrome.app %s'
 
     def close_browser(self):
         for proc in psutil.process_iter():
@@ -115,7 +119,7 @@ class Chrome(BrowserCookieLoader):
             os.path.expanduser('~/.config/google-chrome/Default/Cookies'),
             os.path.expanduser('~/.config/google-chrome/Profile */Cookies'),
             os.path.expanduser('~/.config/vivaldi/Default/Cookies'),
-            os.path.join(os.getenv('APPDATA', ''), r'..\Local\Google\Chrome\User Data\Default\Cookies'),
+            os.path.join(os.getenv('APPDATA', ''), r'..\Local\Google\Chrome\User Data\Profile 1\Cookies'),
             os.path.join(os.getenv('APPDATA', ''), r'..\Local\Vivaldi\User Data\Default\Cookies'),
         ]:
             for result in glob.glob(pattern):
@@ -166,7 +170,7 @@ class Chrome(BrowserCookieLoader):
                     host, path, secure, expires, name = item[:5]
                     value = self._decrypt(item[5], item[6], key=key)
                     # if item[0] == '.instagram.com':
-                    #     print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
+                        # print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
                     yield create_cookie(host, path, secure, expires, name, value)
                 con.close()
 
@@ -182,10 +186,12 @@ class Chrome(BrowserCookieLoader):
                 # for item in cur.fetchall():
                 #     print(item)
 
-                query = 'SELECT * FROM cookies WHERE host_key = ?;'
+                query = 'SELECT host_key, path, is_secure, expires_utc, name, value, encrypted_value FROM cookies WHERE host_key = ?;'
                 cur.execute(query, (site, ))
                 for item in cur.fetchall():
-                    print(item)
+                    host, path, secure, expires, name = item[:5]
+                    value = self._decrypt(item[5], item[6], key=None)
+                    print ('domain: ' + item[0] + ' name: ' + name + ' value: ' + value)
 
                 query = 'DELETE FROM cookies WHERE host_key = ?;'
                 cur.execute(query, (site, ))

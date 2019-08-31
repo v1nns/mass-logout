@@ -1,0 +1,8 @@
+#pycrypto>=2.6.1 # easy_install http://www.voidspace.org.uk/python/pycrypto-2.6.1/pycrypto-2.6.1.win32-py2.7.exe
+pypiwin32>=223; platform_system == "Windows"
+pycryptodome>=3.9.0
+lz4>=2.1.10
+keyring>=19.1.0
+keyrings.alt>=3.1.1
+secretstorage>=3.1.1
+psutil>=5.6.3
